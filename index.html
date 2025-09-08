@@ -36,20 +36,20 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-assets>
-        <!-- 👇 Make sure the path is correct -->
-        <a-asset-item id="mymodel" src="./Assets/Minecraft.glb"></a-asset-item>
+        <a-asset-item id="duckModel" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models/2.0/Duck/glTF-Binary/Duck.glb"></a-asset-item>
       </a-assets>
 
-      <a-entity id="model"
-        gltf-model="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models/2.0/Duck/glTF-Binary/Duck.glb"
-        position="0 0 0"
-        scale="0.2 0.2 0.2"
-        rotation="0 0 0"
-        visible="false"
-        gesture-handler>
+      <!-- Place model inside the target -->
+      <a-entity mindar-image-target="targetIndex: 0" id="target">
+        <a-entity id="model"
+          gltf-model="#duckModel"
+          position="0 0 0"
+          scale="0.05 0.05 0.05"
+          rotation="0 0 0"
+          visible="false"
+          gesture-handler>
+        </a-entity>
       </a-entity>
-
-      <a-entity mindar-image-target="targetIndex: 0" id="target"></a-entity>
     </a-scene>
 
     <script>
@@ -65,7 +65,7 @@
 
       target.addEventListener("targetLost", () => {
         console.log("Image lost → keeping model visible");
-        // Do nothing (so model stays)
+        // Don't hide model, it stays visible
       });
 
       resetBtn.addEventListener("click", () => {
@@ -77,7 +77,7 @@
       // Gesture handler for pinch + rotate
       AFRAME.registerComponent("gesture-handler", {
         schema: {
-          minScale: {default: 0.1},
+          minScale: {default: 0.02},
           maxScale: {default: 2}
         },
         init: function () {

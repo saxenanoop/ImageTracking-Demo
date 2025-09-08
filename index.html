@@ -5,16 +5,65 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   </head>
   <body>
-    <a-scene mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind;" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <!-- Back button -->
+    <button id="backButton" style="position: absolute; top: 10px; left: 10px; z-index: 999; padding: 10px; display: none;">
+      Back
+    </button>
+
+    <a-scene
+      mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind;" 
+      vr-mode-ui="enabled: false" 
+      device-orientation-permission-ui="enabled: false">
+
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity mindar-image-target="targetIndex: 0">
-         <a-entity 
-          gltf-model="Assets/Minecraft.glb" 
-          scale="0.2 0.2 0.2" 
-          position="0 0 0" 
-          rotation="0 180 0">
-        </a-entity>     
+
+      <a-entity id="targetEntity" mindar-image-target="targetIndex: 0">
+        <a-entity id="model"
+          gltf-model="Assets/Minecraft.glb"
+          scale="0.2 0.2 0.2"
+          position="0 0 0"
+          rotation="0 180 0"
+          visible="false">
+        </a-entity>
       </a-entity>
     </a-scene>
+
+    <script>
+      const model = document.querySelector("#model");
+      const targetEntity = document.querySelector("#targetEntity");
+      const backButton = document.querySelector("#backButton");
+
+      let timer = null;
+
+      // When image is found
+      targetEntity.addEventListener("targetFound", () => {
+        console.log("Image found");
+        model.setAttribute("visible", "true");
+
+        // Clear any existing timer
+        if (timer) clearTimeout(timer);
+
+        // Hide after 30 seconds
+        timer = setTimeout(() => {
+          model.setAttribute("visible", "false");
+          backButton.style.display = "none";
+        }, 30000);
+
+        backButton.style.display = "block"; // Show back button
+      });
+
+      // When image is lost, keep model visible until timer finishes
+      targetEntity.addEventListener("targetLost", () => {
+        console.log("Image lost, but keeping model until timer ends");
+      });
+
+      // Back button resets everything
+      backButton.addEventListener("click", () => {
+        model.setAttribute("visible", "false");
+        backButton.style.display = "none";
+        if (timer) clearTimeout(timer);
+        timer = null;
+      });
+    </script>
   </body>
 </html>

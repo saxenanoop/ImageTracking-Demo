@@ -3,29 +3,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <style>
+      body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+      #ui-overlay {
+        position: absolute; top: 0; left: 0; width: 100%;
+        display: flex; justify-content: center; padding: 15px;
+        pointer-events: none; z-index: 10;
+      }
+      #backButton {
+        pointer-events: auto;
+        padding: 12px 20px;
+        background: rgba(0,0,0,0.6);
+        color: white; border: none; border-radius: 8px;
+        font-size: 16px; font-weight: bold;
+        cursor: pointer;
+        display: none;
+        transition: background 0.3s;
+      }
+      #backButton:hover { background: rgba(255,64,64,0.8); }
+      #hint {
+        position: absolute; bottom: 20px; left: 0; width: 100%;
+        text-align: center; color: white; font-size: 16px;
+        background: rgba(0,0,0,0.5); padding: 8px; border-radius: 6px;
+        display: none; z-index: 10;
+      }
+    </style>
   </head>
   <body>
-    <!-- "See More" button -->
-    <button id="nextButton" style="position: absolute; top: 10px; left: 10px; z-index: 999; padding: 10px; display: none;">
-      See More
-    </button>
+    <!-- Overlay UI -->
+    <div id="ui-overlay">
+      <button id="backButton">🔄 Back to Scan</button>
+    </div>
+    <div id="hint">👆 Tap anywhere to place the object</div>
 
     <a-scene
       mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind;" 
       vr-mode-ui="enabled: false" 
       device-orientation-permission-ui="enabled: false">
 
+      <a-assets>
+        <a-asset-item id="minecraftModel" src="Assets/Minecraft.glb"></a-asset-item>
+      </a-assets>
+
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <!-- Image target -->
+      <!-- Image Target -->
       <a-entity id="targetEntity" mindar-image-target="targetIndex: 0">
-        <!-- 3D model -->
         <a-entity id="model"
-          gltf-model="Assets/Minecraft.glb"
-          scale="0.2 0.2 0.2"
-          position="0 0 0"
+          gltf-model="#minecraftModel"
+          scale="0.3 0.3 0.3"
           rotation="0 180 0"
-          visible="false">
+          visible="false"
+          gesture-handler>
         </a-entity>
       </a-entity>
     </a-scene>
@@ -33,31 +62,106 @@
     <script>
       const model = document.querySelector("#model");
       const targetEntity = document.querySelector("#targetEntity");
-      const nextButton = document.querySelector("#nextButton");
+      const scene = document.querySelector("a-scene");
+      const backButton = document.querySelector("#backButton");
+      const hint = document.querySelector("#hint");
 
-      // When the marker is found
+      let isReadyToPlace = false;
+      let isPlaced = false;
+
+      // Gesture detector component
+      AFRAME.registerComponent("gesture-detector", {
+        schema: { element: { default: "" } },
+        init: function () {
+          this.targetElement =
+            this.data.element && document.querySelector(this.data.element);
+          if (!this.targetElement) this.targetElement = this.el;
+          this.internalState = { previousState: null };
+          this.targetElement.addEventListener("touchstart", this.onTouch.bind(this));
+          this.targetElement.addEventListener("touchmove", this.onTouch.bind(this));
+          this.targetElement.addEventListener("touchend", this.onTouch.bind(this));
+        },
+        onTouch: function (event) {
+          if (event.touches.length === 1) {
+            this.emitGestureEvent("onefinger", event);
+          } else if (event.touches.length === 2) {
+            this.emitGestureEvent("twofinger", event);
+          }
+        },
+        emitGestureEvent: function (name, event) {
+          this.el.emit(name + "move", { event: event });
+        }
+      });
+
+      // Gesture handler component
+      AFRAME.registerComponent("gesture-handler", {
+        schema: { enabled: { default: true } },
+        init: function () {
+          this.isDragging = false;
+          this.previousPosition = null;
+          this.el.sceneEl.addEventListener("onefingermove", this.onDrag.bind(this));
+          this.el.sceneEl.addEventListener("twofingermove", this.onPinch.bind(this));
+        },
+        onDrag: function (event) {
+          if (!this.data.enabled) return;
+          const touch = event.detail.event.touches[0];
+          if (!this.previousPosition) {
+            this.previousPosition = { x: touch.clientX, y: touch.clientY };
+            return;
+          }
+          const deltaX = touch.clientX - this.previousPosition.x;
+          this.el.object3D.rotation.y += deltaX * 0.01; // rotate Y axis
+          this.previousPosition = { x: touch.clientX, y: touch.clientY };
+        },
+        onPinch: function (event) {
+          if (!this.data.enabled) return;
+          const touches = event.detail.event.touches;
+          if (touches.length < 2) return;
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (!this.previousDistance) {
+            this.previousDistance = distance;
+            return;
+          }
+          const scaleFactor = distance / this.previousDistance;
+          this.el.object3D.scale.multiplyScalar(scaleFactor);
+          this.previousDistance = distance;
+        }
+      });
+
+      // Marker detected
       targetEntity.addEventListener("targetFound", () => {
-        console.log("Image found");
-        model.setAttribute("visible", "true");
-
-        // Detach model from marker so it stays even if marker is lost
-        document.querySelector("a-scene").appendChild(model);
-        model.setAttribute("position", "0 0 -2"); // place in front of camera
-        model.setAttribute("rotation", "0 0 0");
-
-        nextButton.style.display = "block"; // show "See More" button
+        if (!isPlaced) {
+          console.log("Marker found → Ready for tap placement");
+          hint.style.display = "block";
+          isReadyToPlace = true;
+        }
       });
 
-      // Ignore "targetLost" – we want model to remain
-      targetEntity.addEventListener("targetLost", () => {
-        console.log("Marker lost, model stays.");
+      // Tap to place
+      scene.addEventListener("click", (e) => {
+        if (isReadyToPlace && !isPlaced) {
+          model.setAttribute("position", "0 0 -2"); // default placement
+          scene.appendChild(model);
+          model.setAttribute("visible", "true");
+          isPlaced = true;
+          isReadyToPlace = false;
+          hint.style.display = "none";
+          backButton.style.display = "block";
+        }
       });
 
-      // When "See More" button is clicked
-      nextButton.addEventListener("click", () => {
-        model.setAttribute("visible", "false"); // hide current model
-        nextButton.style.display = "none"; // hide button
-        console.log("Ready for next image tracking...");
+      // Back button
+      backButton.addEventListener("click", () => {
+        console.log("Back to scan mode");
+        model.setAttribute("visible", "false");
+        targetEntity.appendChild(model);
+        isPlaced = false;
+        isReadyToPlace = false;
+        hint.style.display = "none";
+        backButton.style.display = "none";
       });
     </script>
   </body>

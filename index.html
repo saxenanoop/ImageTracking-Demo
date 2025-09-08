@@ -5,9 +5,9 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   </head>
   <body>
-    <!-- Back button -->
-    <button id="backButton" style="position: absolute; top: 10px; left: 10px; z-index: 999; padding: 10px; display: none;">
-      Back
+    <!-- "See More" button -->
+    <button id="nextButton" style="position: absolute; top: 10px; left: 10px; z-index: 999; padding: 10px; display: none;">
+      See More
     </button>
 
     <a-scene
@@ -17,9 +17,11 @@
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
+      <!-- Image target -->
       <a-entity id="targetEntity" mindar-image-target="targetIndex: 0">
+        <!-- 3D model -->
         <a-entity id="model"
-          gltf-model="Assets/Minecraft.glb"
+          gltf-model="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models/2.0/Duck/glTF-Binary/Duck.glb"
           scale="0.2 0.2 0.2"
           position="0 0 0"
           rotation="0 180 0"
@@ -31,38 +33,31 @@
     <script>
       const model = document.querySelector("#model");
       const targetEntity = document.querySelector("#targetEntity");
-      const backButton = document.querySelector("#backButton");
+      const nextButton = document.querySelector("#nextButton");
 
-      let timer = null;
-
-      // When image is found
+      // When the marker is found
       targetEntity.addEventListener("targetFound", () => {
         console.log("Image found");
         model.setAttribute("visible", "true");
 
-        // Clear any existing timer
-        if (timer) clearTimeout(timer);
+        // Detach model from marker so it stays even if marker is lost
+        document.querySelector("a-scene").appendChild(model);
+        model.setAttribute("position", "0 0 -2"); // place in front of camera
+        model.setAttribute("rotation", "0 0 0");
 
-        // Hide after 30 seconds
-        timer = setTimeout(() => {
-          model.setAttribute("visible", "false");
-          backButton.style.display = "none";
-        }, 30000);
-
-        backButton.style.display = "block"; // Show back button
+        nextButton.style.display = "block"; // show "See More" button
       });
 
-      // When image is lost, keep model visible until timer finishes
+      // Ignore "targetLost" – we want model to remain
       targetEntity.addEventListener("targetLost", () => {
-        console.log("Image lost, but keeping model until timer ends");
+        console.log("Marker lost, model stays.");
       });
 
-      // Back button resets everything
-      backButton.addEventListener("click", () => {
-        model.setAttribute("visible", "false");
-        backButton.style.display = "none";
-        if (timer) clearTimeout(timer);
-        timer = null;
+      // When "See More" button is clicked
+      nextButton.addEventListener("click", () => {
+        model.setAttribute("visible", "false"); // hide current model
+        nextButton.style.display = "none"; // hide button
+        console.log("Ready for next image tracking...");
       });
     </script>
   </body>
